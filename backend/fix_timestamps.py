@@ -1,8 +1,26 @@
+"""
+One-off utility: normalise legacy alert timestamps in the SQLite database.
+
+Older versions of the log monitor stored Suricata's ISO-8601 timestamps
+(e.g. "2026-01-01T12:00:00.123456+0000") verbatim.  SQLite's strftime()
+cannot parse those, which caused NULL groups in the timeline query.
+
+Run this script once against an existing database to back-fill the correct
+"YYYY-MM-DD HH:MM:SS" format that the rest of the app expects:
+
+    python fix_timestamps.py               # uses default DB path from config
+    python fix_timestamps.py /path/to.db  # explicit path
+"""
+
+import sys
 import sqlite3
 import re
-from datetime import datetime
+from pathlib import Path
 
-DB_PATH = "/media/ttr/Backup/NIDS_v1/soc-platform/backend/data/soc_alerts.db"
+# Default to the path defined in the monitor config so this script works
+# out-of-the-box from any working directory and on any machine.
+_DEFAULT_DB = Path(__file__).resolve().parent / "data" / "soc_alerts.db"
+DB_PATH = sys.argv[1] if len(sys.argv) > 1 else str(_DEFAULT_DB)
 
 # Regex for ISO format with T and microseconds/zone
 def normalize_timestamp(ts):
