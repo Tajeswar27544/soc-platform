@@ -1,0 +1,50 @@
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+*.iml
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.env
+*.env
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# ─── Backend data & secrets ───────────────────────────────────────────────────
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/GeoLite2-City.mmdb
+backend/GeoLite2-City.tar.gz
+backend/GeoLite2-City_*/
+
+# ─── Node / Frontend ─────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
