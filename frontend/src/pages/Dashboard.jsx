@@ -63,7 +63,8 @@ export default function Dashboard() {
     try {
       if (isInitial) setLoading(true);
 
-      // Fetch all endpoints in parallel — pass signal for cancellation
+      // Use allSettled so one failing endpoint never wipes the whole dashboard.
+      // Individual failures are logged; the panel simply shows its last value.
       const [
         statsRes,
         alertsRes,
@@ -73,7 +74,7 @@ export default function Dashboard() {
         countryRes,
         sigRes,
         healthRes,
-      ] = await Promise.all([
+      ] = await Promise.allSettled([
         fetchStats(signal),
         fetchAlerts(50, 0, signal),
         fetchSeverityDistribution(signal),
@@ -84,21 +85,45 @@ export default function Dashboard() {
         fetchHealth(signal),
       ]);
 
+      // Helper: return value or undefined on rejection
+      const ok = (r) => (r.status === 'fulfilled' ? r.value : undefined);
+
+      // Abort cancellations should silently exit, not count as errors
+      const allAborted = [statsRes, alertsRes, sevRes, timeRes, ipsRes, countryRes, sigRes, healthRes]
+        .every((r) => r.status === 'rejected' &&
+          (r.reason?.name === 'CanceledError' || r.reason?.code === 'ERR_CANCELED'));
+      if (allAborted || signal.aborted) return;
+
       // ── Update stats & charts (always full refresh from backend) ──
-      setStats(statsRes);
-      setSeverityDist(sevRes.distribution || []);
-      setTimeline(timeRes.timeline || []);
-      setTopIPs(ipsRes.top_ips || []);
-      setCountries(countryRes.countries || []);
-      setSignatures(sigRes.signatures || []);
-      setHealth(healthRes);
+      if (ok(statsRes))   setStats(ok(statsRes));
+      if (ok(sevRes))     setSeverityDist(ok(sevRes).distribution || []);
+      if (ok(timeRes))    setTimeline(ok(timeRes).timeline || []);
+      if (ok(ipsRes))     setTopIPs(ok(ipsRes).top_ips || []);
+      if (ok(countryRes)) setCountries(ok(countryRes).countries || []);
+      if (ok(sigRes))     setSignatures(ok(sigRes).signatures || []);
+      if (ok(healthRes))  setHealth(ok(healthRes));
 
       // ── Set alerts for live feed ───────────────────────────────────
-      const incoming = alertsRes.alerts || [];
-      setAlerts(incoming);
+      if (ok(alertsRes)) {
+        const incoming = ok(alertsRes).alerts || [];
+        setAlerts(incoming);
+      }
 
-      setError(null);
-      errorCountRef.current = 0; // reset backoff
+      // Collect any non-abort errors for the banner
+      const failures = [statsRes, alertsRes, sevRes, timeRes, ipsRes, countryRes, sigRes, healthRes]
+        .filter((r) => r.status === 'rejected' &&
+          r.reason?.name !== 'CanceledError' && r.reason?.code !== 'ERR_CANCELED');
+
+      if (failures.length > 0) {
+        const msg = failures[0].reason?.message || 'One or more backend endpoints failed';
+        console.warn('Partial dashboard failure:', failures.map((f) => f.reason?.message));
+        setError(msg);
+        errorCountRef.current += 1;
+      } else {
+        setError(null);
+        errorCountRef.current = 0;
+      }
+
       setLastUpdate(new Date());
     } catch (err) {
       // Don't treat aborted requests as errors
