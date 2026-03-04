@@ -111,7 +111,26 @@ def step_frontend():
     header('Step 2 / 4 — React Frontend')
 
     if not shutil.which('npm'):
-        err('npm not found — please install Node.js 18+ (https://nodejs.org)')
+        info('npm not found on PATH')
+        # On Windows we can't auto-install; guide the user.
+        if IS_WIN:
+            err('npm not found — please install Node.js 18+ (https://nodejs.org)')
+
+        # Try Debian/Ubuntu automatic install if `apt` is available.
+        if shutil.which('apt'):
+            if ask_yn('npm not found. Attempt to install Node.js/npm via apt (requires sudo)?', default=True):
+                info('Installing Node.js and npm via apt (requires sudo)...')
+                run(['sudo', 'apt', 'update'])
+                run(['sudo', 'apt', 'install', '-y', 'nodejs', 'npm'])
+                if not shutil.which('npm'):
+                    warn('Installation finished but npm still not found.')
+                    err('npm not found — please install Node.js 18+ manually (https://nodejs.org)')
+                else:
+                    ok('npm installed')
+            else:
+                err('npm not found — please install Node.js 18+ (https://nodejs.org)')
+        else:
+            err('npm not found — please install Node.js 18+ (https://nodejs.org)')
 
     info('Running npm install …')
     run(['npm', 'install', '--silent'], cwd=FRONTEND)
@@ -167,7 +186,77 @@ def step_geoip():
     set_env_value('GEOIP_DB_PATH', str(mmdb))
     ok(f'GeoLite2-City.mmdb installed → {mmdb}')
 
-# ── Step 4: Email alerts ──────────────────────────────────────────────────────
+import re
+
+# ── Step 4: Suricata auto-config (optional) ───────────────────────────────────
+def step_suricata():
+    header('Step 4 / 5 — Suricata Network Interface (optional)')
+    if not shutil.which('suricata'):
+        warn('Suricata not found — skipping IDS auto-config. Install with: sudo apt install suricata')
+        return
+    # List interfaces (skip loopback)
+    info('Detecting network interfaces …')
+    result = subprocess.run(['ip', 'link'], capture_output=True, text=True)
+    if result.returncode != 0:
+        warn('Could not list interfaces (ip link failed)')
+        return
+    # Parse interface names
+    ifaces = re.findall(r'\d+: ([^:]+):', result.stdout)
+    ifaces = [i for i in ifaces if i != 'lo']
+    if not ifaces:
+        warn('No non-loopback interfaces found')
+        return
+    print('  Available interfaces:')
+    for idx, iface in enumerate(ifaces):
+        print(f'    {idx+1}. {iface}')
+    choice = ask('Select interface to monitor (number)', default='1')
+    try:
+        iface = ifaces[int(choice)-1]
+    except Exception:
+        warn('Invalid selection, skipping Suricata config')
+        return
+    # Patch suricata.yaml
+    yaml_path = '/etc/suricata/suricata.yaml'
+    if not os.path.exists(yaml_path):
+        warn(f'Suricata config not found at {yaml_path}')
+        return
+    # Read and patch config
+    with open(yaml_path, 'r') as f:
+        lines = f.readlines()
+    new_lines = []
+    in_af_packet = False
+    replaced = False
+    for line in lines:
+        if line.strip().startswith('af-packet:'):
+            in_af_packet = True
+            new_lines.append(line)
+            continue
+        if in_af_packet and re.match(r'\s*- interface:', line):
+            # Replace interface line
+            indent = re.match(r'(\s*)- interface:', line).group(1)
+            new_lines.append(f'{indent}- interface: {iface}\n')
+            replaced = True
+            in_af_packet = False  # only replace first occurrence
+            continue
+        new_lines.append(line)
+    if not replaced:
+        warn('Could not find af-packet interface line to replace; skipping patch')
+        return
+    # Write patched config (with sudo)
+    import tempfile
+    with tempfile.NamedTemporaryFile('w', delete=False) as tf:
+        tf.writelines(new_lines)
+        temp_path = tf.name
+    print(cyan(f'    $ sudo cp {temp_path} {yaml_path}'))
+    run(['sudo', 'cp', temp_path, yaml_path])
+    os.unlink(temp_path)
+    ok(f'Suricata config updated to use interface: {iface}')
+    # Offer to restart service
+    if ask_yn('Restart Suricata service now?', default=True):
+        run(['sudo', 'systemctl', 'restart', 'suricata'])
+        ok('Suricata service restarted')
+    else:
+        warn('Suricata not restarted; run: sudo systemctl restart suricata')
 def step_email():
     header('Step 4 / 4 — Email Alerts (optional)')
     print(dim('  High-severity alerts can be emailed via Gmail SMTP.'))
@@ -240,6 +329,7 @@ if __name__ == '__main__':
 
     step_backend()
     step_frontend()
+    step_suricata()
     step_geoip()
     step_email()
     finish()

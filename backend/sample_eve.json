@@ -1,0 +1,1 @@
+{"event_type":"alert","timestamp":"2026-03-04T16:00:00.000Z","src_ip":"1.2.3.4","dest_ip":"5.6.7.8","proto":"TCP","alert":{"signature":"Test alert from sample_eve.json","severity":2,"category":"Test"}}
