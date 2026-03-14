@@ -80,44 +80,33 @@ git clone https://github.com/YOUR_USERNAME/soc-platform.git
 cd soc-platform
 ```
 
-### 2. Backend
+
+### 2. Automated Setup (Recommended)
+
+Run the interactive setup script from the project root:
 
 ```bash
-cd backend/
-
-# Create and activate a Python virtual environment
-python3 -m venv venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Configure environment variables
-cp .env.example .env
-nano .env   # Set EVE_JSON_PATH and GEOIP_DB_PATH at minimum
-
-# Start the API + monitor (single process)
-python -m api.main
-# API:  http://localhost:8000
-# Docs: http://localhost:8000/docs
+python3 setup_cli.py
 ```
 
-> **GeoIP:** Download the free GeoLite2-City database from [MaxMind](https://www.maxmind.com/en/geolite2/signup) and place `GeoLite2-City.mmdb` in `backend/`. Set `GEOIP_DB_PATH` in `.env` accordingly. Country lookups return `Unknown` if omitted.
+This script will:
+- Set up the backend Python environment and dependencies
+- Set up the frontend Node/React environment
+- Guide you through GeoIP database download
+- Detect and configure Suricata (IDS) if installed
+- Help configure email alerts
 
-> **Suricata:** The backend reads a live `eve.json` produced by Suricata. See [setup_guide.md](setup_guide.md) for full Suricata installation and configuration steps.
+> **Suricata:** If Suricata is not installed, the script will prompt you to install it. Suricata is required for live log monitoring. Install with:
+> ```bash
+> sudo apt update && sudo apt install suricata
+> ```
+> Then re-run the setup script to auto-configure Suricata.
 
-### 3. Frontend
+> **GeoIP:** The script will guide you to download the free GeoLite2-City database from [MaxMind](https://www.maxmind.com/en/geolite2/signup) and place it in `backend/`. Country lookups return `Unknown` if omitted.
 
-```bash
-cd frontend/
+> **Email Alerts:** The script will help you configure Gmail SMTP for high-severity alert emails.
 
-# Install Node dependencies
-npm install
-
-# Start the Vite dev server
-npm run dev
-# Dashboard: http://localhost:5173
-```
+After setup, follow the script's instructions to start backend and frontend servers.
 
 ## API Endpoints
 

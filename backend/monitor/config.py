@@ -21,23 +21,38 @@ BASE_DIR: Path = Path(__file__).resolve().parent.parent          # backend/
 DATA_DIR: Path = BASE_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def _resolve_path(path_value: str) -> str:
+    """Resolve env path values relative to backend BASE_DIR.
+
+    This avoids startup-directory-dependent behavior when users provide
+    relative paths (e.g. ./sample_eve.json) in .env.
+    """
+    p = Path(path_value)
+    if p.is_absolute():
+        return str(p)
+    return str((BASE_DIR / p).resolve())
+
 # Suricata eve.json — override with ENV var for custom locations
 EVE_JSON_PATH: str = os.getenv(
     "EVE_JSON_PATH",
     "/var/log/suricata/eve.json",
 )
+EVE_JSON_PATH = _resolve_path(EVE_JSON_PATH)
 
 # GeoLite2-City MMDB — override with ENV var
 GEOIP_DB_PATH: str = os.getenv(
     "GEOIP_DB_PATH",
     str(BASE_DIR / "GeoLite2-City.mmdb"),
 )
+GEOIP_DB_PATH = _resolve_path(GEOIP_DB_PATH)
 
 # SQLite database path
 SQLITE_DB_PATH: str = os.getenv(
     "SQLITE_DB_PATH",
     str(DATA_DIR / "soc_alerts.db"),
 )
+SQLITE_DB_PATH = _resolve_path(SQLITE_DB_PATH)
 
 # ---------------------------------------------------------------------------
 # Email / SMTP  (Gmail SSL)
