@@ -81,28 +81,6 @@ cd soc-platform
 ```
 
 
-### 2. Automated Setup (Recommended)
-
-Run the interactive setup script from the project root:
-
-```bash
-python3 setup_cli.py
-```
-
-This script will:
-- Set up the backend Python environment and dependencies
-- Set up the frontend Node/React environment
-- Guide you through GeoIP database download
-- Detect and configure Suricata (IDS) if installed
-- Help configure email alerts
-
-> **Suricata:** If Suricata is not installed, the script will prompt you to install it. Suricata is required for live log monitoring. Install with:
-> ```bash
-> sudo apt update && sudo apt install suricata
-> ```
-> Then re-run the setup script to auto-configure Suricata.
-
-> **GeoIP:** The script will guide you to download the free GeoLite2-City database from [MaxMind](https://www.maxmind.com/en/geolite2/signup) and place it in `backend/`. Country lookups return `Unknown` if omitted.
 
 > **Email Alerts:** The script will help you configure Gmail SMTP for high-severity alert emails.
 
@@ -121,7 +99,68 @@ After setup, follow the script's instructions to start backend and frontend serv
 | `GET` | `/alerts/severity-distribution` | Severity breakdown |
 | `GET` | `/alerts/timeline` | Hourly counts (24h) |
 | `GET` | `/alerts/countries` | Country distribution |
+# SOC Platform
+
+> Production-quality Network Intrusion Detection Monitoring Platform for resource-constrained environments.
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python) ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi) ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react) ![License](https://img.shields.io/badge/License-MIT-green)
+
+## Architecture
+
+```
+Network Traffic
+    → Suricata IDS
+    → eve.json (JSON alert log)
+    → Python Log Monitor Service (tail -f behaviour)
+    → GeoIP Enrichment (MaxMind GeoLite2-City)
+    → SQLite Database (WAL mode, indexed)
+    → FastAPI REST API (Pydantic models, CORS)
+    → React Dashboard (Vite + Tailwind + Recharts)
+```
+
+## Backend Capabilities
+- Real-time Suricata eve.json alert ingestion
+- GeoIP enrichment using MaxMind GeoLite2-City
+- SQLite database storage (WAL mode, indexed)
+- FastAPI REST API (Pydantic models, CORS)
+- Email alerts via Gmail SMTP
+- Centralized configuration
+
+## Frontend Capabilities
+- React dashboard (Vite + Tailwind CSS + Recharts)
+- Multiple visualization components (CountryTable, SeverityChart, TimelineChart, etc.)
+- Auto-refresh polling (5s interval)
+- API proxying for alerts and health endpoints
+
+## Quick Start
+
+### Backend
+
+```bash
+cd backend/
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+export EVE_JSON_PATH="/var/log/suricata/eve.json"
+export GEOIP_DB_PATH="./GeoLite2-City.mmdb"
+export SMTP_EMAIL="your-email@gmail.com"
+export SMTP_PASSWORD="your-app-password"
+python -m api.main
+```
+Server starts at `http://0.0.0.0:8000`. API docs at `/docs`.
+
+### Frontend
+
+```bash
+cd frontend/
 | `GET` | `/alerts/top-signatures` | Most triggered signatures |
+npm run dev
+```
+Opens at `http://localhost:5173`. Vite dev server proxies `/alerts` and `/health` to backend.
+
+## Project Structure
+
+```
 
 ## Key Features
 
@@ -171,6 +210,27 @@ Severity 3-4 alerts generate too much noise for email notifications. They are st
 
 Suricata is a **signature-based** IDS, which means:
 
+
+## Environment Variables
+
+### Backend
+| Variable | Default | Description |
+|---|---|---|
+| `EVE_JSON_PATH` | `/var/log/suricata/eve.json` | Path to Suricata eve.json |
+| `GEOIP_DB_PATH` | `./GeoLite2-City.mmdb` | Path to MaxMind GeoLite2-City database |
+| `SQLITE_DB_PATH` | `./data/soc_alerts.db` | SQLite database file |
+| `SMTP_EMAIL` | *(empty)* | Gmail address for alerts |
+| `SMTP_PASSWORD` | *(empty)* | Gmail App Password |
+| `SMTP_HOST` | `smtp.gmail.com` | SMTP server host |
+| `SMTP_PORT` | `465` | SMTP SSL port |
+
+### Frontend
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:8000` | Backend API base URL |
+
+## License
+MIT License
 **Strengths:**
 - Very fast detection of **known** attack patterns
 - Low false positive rate for well-maintained rule sets
