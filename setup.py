@@ -21,10 +21,15 @@ ROOT    = Path(__file__).resolve().parent
 BACKEND = ROOT / 'backend'
 FRONTEND = ROOT / 'frontend'
 PYTHON  = sys.executable           # same interpreter that is running this script
+DATA_DIR = BACKEND / 'data'
 
 # Ensure backend package is importable for helpers (e.g., monitor.geoip)
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
+
+# Ensure data helpers (monitor) are importable
+if str(DATA_DIR) not in sys.path:
+    sys.path.insert(0, str(DATA_DIR))
 
 IS_WIN = os.name == 'nt'
 PIP    = BACKEND / 'venv' / ('Scripts/pip.exe' if IS_WIN else 'bin/pip')
