@@ -22,6 +22,10 @@ BACKEND = ROOT / 'backend'
 FRONTEND = ROOT / 'frontend'
 PYTHON  = sys.executable           # same interpreter that is running this script
 
+# Ensure backend package is importable for helpers (e.g., monitor.geoip)
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
+
 IS_WIN = os.name == 'nt'
 PIP    = BACKEND / 'venv' / ('Scripts/pip.exe' if IS_WIN else 'bin/pip')
 VENV_PYTHON = BACKEND / 'venv' / ('Scripts/python.exe' if IS_WIN else 'bin/python')
@@ -258,42 +262,41 @@ def step_geoip():
         set_env_value('GEOIP_DB_PATH', str(mmdb))
         return
 
+    import sys
+    if str(BACKEND) not in sys.path:
+        sys.path.insert(0, str(BACKEND))
+    try:
+        from monitor.geoip import download_geoip_db
+    except Exception as exc:
+        download_geoip_db = None
+        warn(f'GeoIP helper unavailable ({exc}) — skipping auto-download')
+        warn('You can place GeoLite2-City.mmdb in backend/ later and re-run setup')
+        return
+
     print(dim('  Country lookups require the free MaxMind GeoLite2-City database.'))
     print(dim('  Sign up at https://www.maxmind.com/en/geolite2/signup to get a license key.'))
     print()
 
-    if not ask_yn('Do you have a MaxMind license key?', default=False):
-        warn('Skipping GeoIP — country lookups will show "Unknown"')
-        warn('You can re-run this script or place GeoLite2-City.mmdb in backend/ later')
-        return
+    license_key = (os.getenv('MAXMIND_LICENSE_KEY') or '').strip()
+    if license_key:
+        info('Using MAXMIND_LICENSE_KEY from environment for GeoIP download')
+    else:
+        if not ask_yn('Do you have a MaxMind license key?', default=False):
+            warn('Skipping GeoIP — country lookups will show "Unknown"')
+            warn('You can re-run this script or place GeoLite2-City.mmdb in backend/ later')
+            return
 
-    key = ask('MaxMind license key')
-    if not key:
-        warn('No key entered — skipping GeoIP')
-        return
-
-    url = (
-        f'https://download.maxmind.com/app/geoip_download'
-        f'?edition_id=GeoLite2-City&license_key={key}&suffix=tar.gz'
-    )
-    tgz = BACKEND / 'GeoLite2-City.tar.gz'
+        license_key = ask('MaxMind license key')
+        if not license_key:
+            warn('No key entered — skipping GeoIP')
+            return
 
     info('Downloading GeoLite2-City.mmdb …')
-    run(['wget', '-q', url, '-O', str(tgz)])
-
-    info('Extracting …')
-    run(['tar', '-xzf', str(tgz), '-C', str(BACKEND)])
-
-    # Find and move the .mmdb
-    matches = list(BACKEND.glob('GeoLite2-City_*/GeoLite2-City.mmdb'))
-    if not matches:
-        err('Could not find .mmdb after extraction — check license key and try again')
-    matches[0].rename(mmdb)
-
-    # Clean up
-    for d in BACKEND.glob('GeoLite2-City_*/'):
-        shutil.rmtree(d, ignore_errors=True)
-    tgz.unlink(missing_ok=True)
+    success = download_geoip_db(mmdb, license_key=license_key)
+    if not success:
+        warn('GeoIP download failed — country lookups will show "Unknown"')
+        warn('You can retry later by re-running setup or python -m monitor.geoip --output backend/GeoLite2-City.mmdb')
+        return
 
     set_env_value('GEOIP_DB_PATH', str(mmdb))
     ok(f'GeoLite2-City.mmdb installed → {mmdb}')
